@@ -18,10 +18,6 @@ explosionSound = mixer.Sound("./audios/explosion.wav")
 bulletSound.set_volume(0.1)
 explosionSound.set_volume(0.1)
 
-# Play the song
-mixer.music.play(-1)
-mixer.music.set_volume(0.1)
-
 # Play background song
 
 # Background
@@ -36,6 +32,73 @@ pygame.display.set_caption("Space Invaders")
 gameIcon = pygame.image.load("./images/icon.png")
 pygame.display.set_icon(gameIcon)
 
+# Game Main
+
+game = {"started": False}
+
+# Button
+
+buttons = []
+
+
+class Button:
+    def __init__(self, text, width, height, pos, elevation, feedback):
+        # Core attributes
+        self.pressed = False
+        self.elevation = elevation
+        self.dynamic_elecation = elevation
+        self.original_y_pos = pos[1]
+        self.feedback = feedback
+
+        # top rectangle
+        self.top_rect = pygame.Rect(pos, (width, height))
+        self.top_color = '#475F77'
+
+        # bottom rectangle
+        self.bottom_rect = pygame.Rect(pos, (width, height))
+        self.bottom_color = '#354B5E'
+        # text
+        self.text = text
+        self.text_surf = gui_font.render(text, True, '#FFFFFF')
+        self.text_rect = self.text_surf.get_rect(center=self.top_rect.center)
+        buttons.append(self)
+
+    def change_text(self, newtext):
+        self.text_surf = gui_font.render(newtext, True, '#FFFFFF')
+        self.text_rect = self.text_surf.get_rect(center=self.top_rect.center)
+
+    def draw(self):
+        # elevation logic
+        self.top_rect.y = self.original_y_pos - self.dynamic_elecation
+        self.text_rect.center = self.top_rect.center
+
+        self.bottom_rect.midtop = self.top_rect.midtop
+        self.bottom_rect.height = self.top_rect.height + self.dynamic_elecation
+
+        pygame.draw.rect(screen, self.bottom_color,
+                         self.bottom_rect, border_radius=12)
+        pygame.draw.rect(screen, self.top_color,
+                         self.top_rect, border_radius=12)
+        screen.blit(self.text_surf, self.text_rect)
+        self.check_click()
+
+    def check_click(self):
+        mouse_pos = pygame.mouse.get_pos()
+        if self.top_rect.collidepoint(mouse_pos):
+            self.top_color = '#D74B4B'
+            if pygame.mouse.get_pressed()[0]:
+                self.feedback()
+                self.dynamic_elecation = 0
+                self.pressed = True
+                self.change_text(f"{self.text}")
+            else:
+                self.dynamic_elecation = self.elevation
+                if self.pressed == True:
+                    self.pressed = False
+                    self.change_text(self.text)
+        else:
+            self.dynamic_elecation = self.elevation
+            self.top_color = '#475F77'
 
 # Entities
 
@@ -138,6 +201,8 @@ class Enemy(Entity):
                 self.Y += 50
 
     def checkCollisionWithPlayer(self):
+        if(self.isDead):
+            return
         getDistanceWithPlayer = math.sqrt(
             math.pow(self.X - player.X, 2) + math.pow(self.Y - player.Y, 2))
         if (getDistanceWithPlayer < 32):
@@ -160,6 +225,8 @@ class Bullet(Entity):
         else:
             self.Y += self.speed
 
+
+gui_font = pygame.font.Font(None, 30)
 
 # Player
 player = Player(370, 480, 40, "player.png")
@@ -191,16 +258,43 @@ def renderScore():
     score = subtitle.render(f"SCORE: {player.score}", True, (255, 255, 255))
     screen.blit(score, (10, 10))
 
+# Start Game Screen
+
+
+def renderStartGameScreen():
+    gameTitle = title.render("SPACE INVADERS", True, (75, 255, 0))
+    startGameButton.draw()
+    screen.blit(gameTitle, (90, 250))
+
+
 # Game Over Screen
 
 
 def renderGameOverScreen():
     gameOver = title.render("GAME OVER!", True, (255, 0, 0))
     scoreLabel = subtitle.render(
-        f"Your score: {player.score}", True, (255, 255, 0))
+        f"Seu score: {player.score}", True, (255, 255, 0))
+    startAgainButton.draw()
     screen.blit(gameOver, (180, 250))
     screen.blit(scoreLabel, (300, 320))
 
+# Start Game Again
+
+
+def startGame():
+    game["started"] = True
+    player.isDead = False
+    enemies.clear()
+    bullets.clear()
+    mixer.music.play(-1)
+    mixer.music.set_volume(0.1)
+    for i in range(6):
+        createEnemy()
+
+
+# Buttons
+startAgainButton = Button("Jogar Novamente", 200, 40, (290, 380), 5, startGame)
+startGameButton = Button("Jogar", 200, 40, (290, 380), 5, startGame)
 
 # Game Loop
 running = True
@@ -223,27 +317,30 @@ while running:
         if event.type == pygame.KEYUP:
             player.unlockMovement(event.key)
 
-    if (player.isDead):
-        renderGameOverScreen()
+    if(not game["started"]):
+        renderStartGameScreen()
     else:
-        # Draw the player
-        player.render()
-        if (player.isMoving):
-            player.move(player.movementDirection)
+        if (player.isDead):
+            renderGameOverScreen()
+        else:
+            # Draw the player
+            player.render()
+            if (player.isMoving):
+                player.move(player.movementDirection)
 
-        # Draw the enemy
-        for enemy in enemies:
-            enemy.render()
-            enemy.automaticAnimation()
-            enemy.checkCollisionWithPlayer()
+            # Draw the enemy
+            for enemy in enemies:
+                enemy.render()
+                enemy.automaticAnimation()
+                enemy.checkCollisionWithPlayer()
 
-        # Draw the bullets
-        for bullet in bullets:
-            bullet.render()
-            bullet.automaticAnimation()
+            # Draw the bullets
+            for bullet in bullets:
+                bullet.render()
+                bullet.automaticAnimation()
 
-        # Draw the score
-        renderScore()
+            # Draw the score
+            renderScore()
 
     # Update the game while running
     pygame.display.update()
